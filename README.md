@@ -1,10 +1,13 @@
 # json-schema-specificity
 
-A JavaScript library for comparing JSON Schema specificity. This library helps determine if one JSON schema is more specific than another, meaning that any JSON document that would be validated by the extension schema would also be validated by the original schema.
+A JavaScript library for working with JSON Schema specificity. This library helps you:
+1. Determine if one JSON schema is more specific than another
+2. Create extension schemas by specifying only the changes you want to make
 
-## Live Demo
+## Live Demos
 
-Try out the library with our [interactive demo](https://adesmet.github.io/json-schema-specificity/). The demo allows you to input two JSON schemas and instantly see if one is more specific than the other.
+- [Schema Comparison Demo](https://adesmet.github.io/json-schema-specificity/) - Compare two schemas to check if one is more specific than the other
+- [Extension Creator Demo](https://adesmet.github.io/json-schema-specificity/create-extension.html) - Create a more specific schema by providing only the changes you want to make
 
 ## Installation
 
@@ -50,6 +53,19 @@ Determines if the extension schema is more specific than the original schema.
 
 - `boolean`: Returns `true` if the extension schema is more specific than the original schema, `false` otherwise.
 
+### createExtension(base, delta)
+
+Creates a new schema by merging a base schema with delta changes, ensuring the result is more specific than the base schema.
+
+#### Parameters
+
+- `base` (Object): The base JSON schema
+- `delta` (Object): The delta changes to apply
+
+#### Returns
+
+- `Object`: A new schema that extends the base schema with the delta changes
+
 ## Features
 
 - Supports JSON Schema Draft-07
@@ -66,7 +82,9 @@ Determines if the extension schema is more specific than the original schema.
 
 ## Examples
 
-### Type Compatibility
+### Comparing Schema Specificity
+
+#### Type Compatibility
 
 ```javascript
 isMoreSpecific(
@@ -75,7 +93,7 @@ isMoreSpecific(
 ); // true
 ```
 
-### Numeric Constraints
+#### Numeric Constraints
 
 ```javascript
 isMoreSpecific(
@@ -84,13 +102,44 @@ isMoreSpecific(
 ); // true
 ```
 
-### Array Constraints
+#### Array Constraints
 
 ```javascript
 isMoreSpecific(
   { type: 'array', items: { type: 'string' }, maxItems: 5 },
   { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 3 }
 ); // true
+```
+
+### Creating Extension Schemas
+
+```javascript
+import { createExtension } from 'json-schema-specificity';
+
+const base = {
+  type: 'object',
+  properties: {
+    name: { type: 'string' },
+    age: { type: 'number' }
+  }
+};
+
+const delta = {
+  properties: {
+    name: { minLength: 1 },
+    age: { minimum: 0, maximum: 120 }
+  }
+};
+
+const extension = createExtension(base, delta);
+// Result:
+// {
+//   type: 'object',
+//   properties: {
+//     name: { type: 'string', minLength: 1 },
+//     age: { type: 'number', minimum: 0, maximum: 120 }
+//   }
+// }
 ```
 
 ## License

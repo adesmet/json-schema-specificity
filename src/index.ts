@@ -21,12 +21,163 @@ interface JSONSchema {
 }
 
 /**
+ * Creates an extension schema by merging a base schema with a delta schema
+ * @param base - The base JSON schema
+ * @param delta - The delta changes to apply
+ * @returns A new schema that extends the base schema with the delta changes
+ */
+function createExtension(base: JSONSchema, delta: JSONSchema): JSONSchema {
+  // Handle null/undefined schemas
+  if (!base || !delta) return base || delta || {};
+
+  const result: JSONSchema = { ...base };
+
+  // Merge types (ensuring compatibility)
+  if (delta.type) {
+    const baseTypes = Array.isArray(base.type) ? base.type : [base.type || 'object'];
+    const deltaTypes = Array.isArray(delta.type) ? delta.type : [delta.type];
+
+    // Only keep compatible types
+    const compatibleTypes = deltaTypes.filter((deltaType) =>
+      baseTypes.some(
+        (baseType) => baseType === deltaType || (baseType === 'number' && deltaType === 'integer')
+      )
+    );
+
+    // If no compatible types found, keep base type
+    if (compatibleTypes.length === 0) {
+      result.type = base.type || 'object';
+    } else {
+      // For array types, ensure we only keep the most specific types
+      // (e.g., if we have both 'number' and 'integer', only keep 'integer')
+      const finalTypes = compatibleTypes.filter(
+        (type) =>
+          !compatibleTypes.some(
+            (otherType) => type !== otherType && isTypeCompatible(type, otherType)
+          )
+      );
+
+      // If the base type was an array, keep the result as an array
+      result.type = Array.isArray(base.type)
+        ? finalTypes
+        : finalTypes.length === 1
+          ? finalTypes[0]
+          : finalTypes;
+    }
+  }
+
+  // Merge const values (delta overrides if compatible)
+  if (delta.const !== undefined) {
+    result.const = delta.const;
+  }
+
+  // Merge enum values (intersection)
+  if (delta.enum) {
+    if (base.enum) {
+      result.enum = delta.enum.filter((value) => base.enum!.includes(value));
+    } else {
+      result.enum = delta.enum;
+    }
+  }
+
+  // Merge numeric constraints
+  if (
+    (base.type === 'number' || base.type === 'integer') &&
+    (delta.type === 'number' || delta.type === 'integer')
+  ) {
+    // Take the most restrictive constraints
+    if (delta.minimum !== undefined) {
+      result.minimum = Math.max(delta.minimum, base.minimum || -Infinity);
+    }
+    if (delta.maximum !== undefined) {
+      result.maximum = Math.min(delta.maximum, base.maximum || Infinity);
+    }
+    if (delta.exclusiveMinimum !== undefined) {
+      result.exclusiveMinimum = Math.max(
+        delta.exclusiveMinimum,
+        base.exclusiveMinimum || -Infinity
+      );
+    }
+    if (delta.exclusiveMaximum !== undefined) {
+      result.exclusiveMaximum = Math.min(delta.exclusiveMaximum, base.exclusiveMaximum || Infinity);
+    }
+    if (delta.multipleOf !== undefined) {
+      if (base.multipleOf !== undefined) {
+        // Ensure delta.multipleOf is a multiple of base.multipleOf
+        if (delta.multipleOf % base.multipleOf === 0) {
+          result.multipleOf = delta.multipleOf;
+        }
+      } else {
+        result.multipleOf = delta.multipleOf;
+      }
+    }
+  }
+
+  // Merge array constraints
+  if (base.type === 'array' && delta.type === 'array') {
+    if (delta.minItems !== undefined) {
+      result.minItems = Math.max(delta.minItems, base.minItems || 0);
+    }
+    if (delta.maxItems !== undefined) {
+      result.maxItems = Math.min(delta.maxItems, base.maxItems || Infinity);
+    }
+    if (delta.uniqueItems !== undefined) {
+      result.uniqueItems = delta.uniqueItems || base.uniqueItems;
+    }
+    if (delta.items && base.items) {
+      result.items = createExtension(base.items, delta.items);
+    }
+  }
+
+  // Merge string constraints
+  if (base.type === 'string' && delta.type === 'string') {
+    if (delta.minLength !== undefined) {
+      result.minLength = Math.max(delta.minLength, base.minLength || 0);
+    }
+    if (delta.maxLength !== undefined) {
+      result.maxLength = Math.min(delta.maxLength, base.maxLength || Infinity);
+    }
+    if (delta.pattern !== undefined) {
+      // For patterns, we currently only support exact matches or delta overrides
+      result.pattern = delta.pattern;
+    }
+  }
+
+  // Merge object properties
+  if (base.type === 'object' || delta.type === 'object') {
+    // Merge additionalProperties (more restrictive wins)
+    if (delta.additionalProperties !== undefined) {
+      result.additionalProperties =
+        delta.additionalProperties && base.additionalProperties !== false;
+    }
+
+    // Merge properties
+    if (delta.properties) {
+      result.properties = result.properties || {};
+      for (const [key, deltaSchema] of Object.entries(delta.properties)) {
+        const baseSchema = base.properties?.[key];
+        result.properties[key] = baseSchema
+          ? createExtension(baseSchema, deltaSchema)
+          : deltaSchema;
+      }
+    }
+
+    // Merge required properties (union)
+    if (delta.required) {
+      result.required = Array.from(new Set([...(base.required || []), ...delta.required]));
+    }
+  }
+
+  return result;
+}
+
+/**
  * Checks if an extension schema is more specific than the original schema
  * @param original - The original JSON schema
  * @param extension - The extension JSON schema to compare
  * @returns True if extension is more specific than original
  */
-export function isMoreSpecific(original: JSONSchema, extension: JSONSchema): boolean {
+function isMoreSpecific(original: JSONSchema, extension: JSONSchema): boolean {
   // Handle null/undefined schemas
   if (!original || !extension) return false;
 
@@ -304,3 +455,8 @@ function areStringConstraintsCompatible(original: JSONSchema, extension: JSONSch
 
   return true;
 }
+
+export default {
+  isMoreSpecific,
+  createExtension,
+};
