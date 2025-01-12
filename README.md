@@ -2,6 +2,10 @@
 
 A JavaScript library for comparing JSON Schema specificity. This library helps determine if one JSON schema is more specific than another, meaning that any JSON document that would be validated by the extension schema would also be validated by the original schema.
 
+## Live Demo
+
+Try out the library with our [interactive demo](https://adesmet.github.io/json-schema-specificity/). The demo allows you to input two JSON schemas and instantly see if one is more specific than the other.
+
 ## Installation
 
 ```bash
