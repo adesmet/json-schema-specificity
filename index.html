@@ -76,48 +76,139 @@
     </style>
 </head>
 <body>
-    <h1>JSON Schema Extension Demo</h1>
+    <h1>JSON Schema Tools</h1>
     <div class="nav">
-        <a href="https://adesmet.github.io/json-schema-specificity/index.html">Extend Schema</a>
-        <a href="https://adesmet.github.io/json-schema-specificity/create-extension.html">Create Extension</a>
+        <button onclick="showTab('compare')" class="tab-button active" id="compareTab">Compare Schemas</button>
+        <button onclick="showTab('extend')" class="tab-button" id="extendTab">Extend Schema</button>
     </div>
-    <p>
-        This demo allows you to extend a base JSON schema with additional properties and constraints.
-        The extension will be merged with the base schema, with extension properties overriding or
-        adding to the base schema properties.
-    </p>
-    <div class="container">
-        <div>
-            <h3>Base Schema</h3>
-            <textarea id="original" placeholder="Enter the base JSON schema...">{
+
+    <div id="compareSection" class="tab-section">
+        <p>
+            Check if one JSON schema (extension) is more specific than another (original).
+            A schema is considered more specific if any JSON document that would be validated by it would also be
+            validated by the original schema.
+        </p>
+        <div class="container">
+            <div>
+                <h3>Original Schema</h3>
+                <textarea id="compareOriginal" placeholder="Enter the original JSON schema...">{
   "type": "object",
   "properties": {
     "name": { "type": "string" }
   }
 }</textarea>
+            </div>
+            <div>
+                <h3>Extension Schema</h3>
+                <textarea id="compareExtension" placeholder="Enter the extension schema...">{
+  "type": "object",
+  "properties": {
+    "name": { 
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}</textarea>
+            </div>
         </div>
-        <div>
-            <h3>Extension Schema</h3>
-            <textarea id="extension" placeholder="Enter the extension schema...">{
+        <div class="error-message" id="compareError"></div>
+        <button onclick="checkSpecificity()">Check Specificity</button>
+        <div id="compareResult"></div>
+    </div>
+
+    <div id="extendSection" class="tab-section" style="display: none;">
+        <p>
+            Extend a base JSON schema with additional properties and constraints.
+            The extension will be merged with the base schema, with extension properties overriding or
+            adding to the base schema properties.
+        </p>
+        <div class="container">
+            <div>
+                <h3>Base Schema</h3>
+                <textarea id="extendOriginal" placeholder="Enter the base JSON schema...">{
+  "type": "object",
+  "properties": {
+    "name": { "type": "string" }
+  }
+}</textarea>
+            </div>
+            <div>
+                <h3>Extension Schema</h3>
+                <textarea id="extendExtension" placeholder="Enter the extension schema...">{
   "properties": {
     "name": { 
       "minLength": 1
     }
   }
 }</textarea>
+            </div>
         </div>
+        <div class="error-message" id="extendError"></div>
+        <button onclick="extendSchema()">Extend Schema</button>
+        <div id="extendResult"></div>
     </div>
-    <div class="error-message" id="error"></div>
-    <button onclick="extendSchema()">Extend Schema</button>
-    <div id="result"></div>
+
+    <style>
+        .tab-button {
+            background-color: #f8f9fa;
+            color: #007bff;
+            border: 1px solid #dee2e6;
+            padding: 10px 20px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+        .tab-button.active {
+            background-color: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        .tab-section {
+            margin-top: 20px;
+        }
+    </style>
 
     <script src="json-schema-specificity.min.js"></script>
     <script>
+        function showTab(tab) {
+            // Update tab buttons
+            document.getElementById('compareTab').classList.toggle('active', tab === 'compare');
+            document.getElementById('extendTab').classList.toggle('active', tab === 'extend');
+            
+            // Show/hide sections
+            document.getElementById('compareSection').style.display = tab === 'compare' ? 'block' : 'none';
+            document.getElementById('extendSection').style.display = tab === 'extend' ? 'block' : 'none';
+        }
+
+        function checkSpecificity() {
+            const originalText = document.getElementById('compareOriginal').value;
+            const extensionText = document.getElementById('compareExtension').value;
+            const errorDiv = document.getElementById('compareError');
+            const resultDiv = document.getElementById('compareResult');
+
+            try {
+                const original = JSON.parse(originalText);
+                const extension = JSON.parse(extensionText);
+
+                const result = jsonSchemaSpecificity.isMoreSpecific(original, extension);
+                
+                resultDiv.textContent = result
+                    ? "✅ The extension schema is more specific than the original schema."
+                    : "❌ The extension schema is NOT more specific than the original schema.";
+                resultDiv.className = result ? 'success' : 'error';
+                errorDiv.style.display = 'none';
+            } catch (err) {
+                errorDiv.textContent = "Error: " + err.message;
+                errorDiv.style.display = 'block';
+                resultDiv.textContent = '';
+                resultDiv.className = '';
+            }
+        }
+
         function extendSchema() {
-            const originalText = document.getElementById('original').value;
-            const extensionText = document.getElementById('extension').value;
-            const errorDiv = document.getElementById('error');
-            const resultDiv = document.getElementById('result');
+            const originalText = document.getElementById('extendOriginal').value;
+            const extensionText = document.getElementById('extendExtension').value;
+            const errorDiv = document.getElementById('extendError');
+            const resultDiv = document.getElementById('extendResult');
 
             try {
                 const original = JSON.parse(originalText);
