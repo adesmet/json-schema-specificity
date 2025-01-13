@@ -21,6 +21,34 @@ interface JSONSchema {
 }
 
 /**
+ * Merges numeric constraints from delta into base
+ */
+function mergeNumericConstraints(base: JSONSchema, delta: JSONSchema, result: JSONSchema): void {
+  if (delta.minimum !== undefined) {
+    result.minimum = Math.max(delta.minimum, base.minimum || -Infinity);
+  }
+  if (delta.maximum !== undefined) {
+    result.maximum = Math.min(delta.maximum, base.maximum || Infinity);
+  }
+  if (delta.exclusiveMinimum !== undefined) {
+    result.exclusiveMinimum = Math.max(delta.exclusiveMinimum, base.exclusiveMinimum || -Infinity);
+  }
+  if (delta.exclusiveMaximum !== undefined) {
+    result.exclusiveMaximum = Math.min(delta.exclusiveMaximum, base.exclusiveMaximum || Infinity);
+  }
+  if (delta.multipleOf !== undefined) {
+    if (base.multipleOf !== undefined) {
+      // Ensure delta.multipleOf is a multiple of base.multipleOf
+      if (delta.multipleOf % base.multipleOf === 0) {
+        result.multipleOf = delta.multipleOf;
+      }
+    } else {
+      result.multipleOf = delta.multipleOf;
+    }
+  }
+}
+
+/**
  * Creates an extension schema by merging a base schema with delta changes
  * @param base - The base JSON schema
  * @param delta - The delta changes to apply
@@ -70,32 +98,9 @@ export function createExtension(base: JSONSchema, delta: JSONSchema): JSONSchema
     }
   }
 
-  // Merge numeric constraints
-  if ((base.type === 'number' || base.type === 'integer') || 
-      (base.properties && Object.values(base.properties).some(p => p.type === 'number' || p.type === 'integer'))) {
-    // Take the most restrictive constraints
-    if (delta.minimum !== undefined) {
-      result.minimum = Math.max(delta.minimum, base.minimum || -Infinity);
-    }
-    if (delta.maximum !== undefined) {
-      result.maximum = Math.min(delta.maximum, base.maximum || Infinity);
-    }
-    if (delta.exclusiveMinimum !== undefined) {
-      result.exclusiveMinimum = Math.max(delta.exclusiveMinimum, base.exclusiveMinimum || -Infinity);
-    }
-    if (delta.exclusiveMaximum !== undefined) {
-      result.exclusiveMaximum = Math.min(delta.exclusiveMaximum, base.exclusiveMaximum || Infinity);
-    }
-    if (delta.multipleOf !== undefined) {
-      if (base.multipleOf !== undefined) {
-        // Ensure delta.multipleOf is a multiple of base.multipleOf
-        if (delta.multipleOf % base.multipleOf === 0) {
-          result.multipleOf = delta.multipleOf;
-        }
-      } else {
-        result.multipleOf = delta.multipleOf;
-      }
-    }
+  // Merge numeric constraints for root schema
+  if (base.type === 'number' || base.type === 'integer') {
+    mergeNumericConstraints(base, delta, result);
   }
 
   // Merge array constraints
@@ -140,7 +145,15 @@ export function createExtension(base: JSONSchema, delta: JSONSchema): JSONSchema
       result.properties = result.properties || {};
       for (const [key, deltaSchema] of Object.entries(delta.properties)) {
         const baseSchema = base.properties?.[key];
-        result.properties[key] = baseSchema ? createExtension(baseSchema, deltaSchema) : deltaSchema;
+        if (baseSchema) {
+          result.properties[key] = createExtension(baseSchema, deltaSchema);
+          // Apply numeric constraints to properties if needed
+          if (baseSchema.type === 'number' || baseSchema.type === 'integer') {
+            mergeNumericConstraints(baseSchema, deltaSchema, result.properties[key]);
+          }
+        } else {
+          result.properties[key] = deltaSchema;
+        }
       }
     }
 
