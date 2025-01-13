@@ -76,20 +76,20 @@
     </style>
 </head>
 <body>
-    <h1>JSON Schema Specificity Demo</h1>
+    <h1>JSON Schema Extension Demo</h1>
     <div class="nav">
-        <a href="https://adesmet.github.io/json-schema-specificity/index.html">Compare Schemas</a>
+        <a href="https://adesmet.github.io/json-schema-specificity/index.html">Extend Schema</a>
         <a href="https://adesmet.github.io/json-schema-specificity/create-extension.html">Create Extension</a>
     </div>
     <p>
-        This demo allows you to check if one JSON schema (extension) is more specific than another (original).
-        A schema is considered more specific if any JSON document that would be validated by it would also be
-        validated by the original schema.
+        This demo allows you to extend a base JSON schema with additional properties and constraints.
+        The extension will be merged with the base schema, with extension properties overriding or
+        adding to the base schema properties.
     </p>
     <div class="container">
         <div>
-            <h3>Original Schema</h3>
-            <textarea id="original" placeholder="Enter the original JSON schema...">{
+            <h3>Base Schema</h3>
+            <textarea id="original" placeholder="Enter the base JSON schema...">{
   "type": "object",
   "properties": {
     "name": { "type": "string" }
@@ -98,11 +98,9 @@
         </div>
         <div>
             <h3>Extension Schema</h3>
-            <textarea id="extension" placeholder="Enter the extension JSON schema...">{
-  "type": "object",
+            <textarea id="extension" placeholder="Enter the extension schema...">{
   "properties": {
     "name": { 
-      "type": "string",
       "minLength": 1
     }
   }
@@ -110,12 +108,12 @@
         </div>
     </div>
     <div class="error-message" id="error"></div>
-    <button onclick="checkSpecificity()">Check Specificity</button>
+    <button onclick="extendSchema()">Extend Schema</button>
     <div id="result"></div>
 
     <script src="json-schema-specificity.min.js"></script>
     <script>
-        function checkSpecificity() {
+        function extendSchema() {
             const originalText = document.getElementById('original').value;
             const extensionText = document.getElementById('extension').value;
             const errorDiv = document.getElementById('error');
@@ -125,12 +123,10 @@
                 const original = JSON.parse(originalText);
                 const extension = JSON.parse(extensionText);
 
-                const result = jsonSchemaSpecificity.isMoreSpecific(original, extension);
+                const result = jsonSchemaSpecificity.extendSchema(original, extension);
                 
-                resultDiv.textContent = result
-                    ? "✅ The extension schema is more specific than the original schema."
-                    : "❌ The extension schema is NOT more specific than the original schema.";
-                resultDiv.className = result ? 'success' : 'error';
+                resultDiv.textContent = JSON.stringify(result, null, 2);
+                resultDiv.className = 'success';
                 errorDiv.style.display = 'none';
             } catch (err) {
                 errorDiv.textContent = "Error: " + err.message;

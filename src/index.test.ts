@@ -1,378 +1,210 @@
-import { isMoreSpecific } from './index';
+import { extendSchema } from './index';
 
-describe('isMoreSpecific', () => {
-  describe('type compatibility', () => {
-    it('should allow integer to be more specific than number', () => {
-      expect(isMoreSpecific({ type: 'number' }, { type: 'integer' })).toBe(true);
+describe('extendSchema', () => {
+  describe('basic functionality', () => {
+    it('should handle null/undefined values', () => {
+      expect(extendSchema(null as any, { type: 'string' })).toEqual({ type: 'string' });
+      expect(extendSchema({ type: 'string' }, null as any)).toEqual(null);
+      expect(extendSchema(undefined as any, { type: 'string' })).toEqual({ type: 'string' });
+      expect(extendSchema({ type: 'string' }, undefined as any)).toEqual({ type: 'string' });
     });
 
-    it('should not allow number to be more specific than integer', () => {
-      expect(isMoreSpecific({ type: 'integer' }, { type: 'number' })).toBe(false);
+    it('should merge simple objects', () => {
+      const base = { type: 'object', required: ['name'] };
+      const extension = { additionalProperties: false };
+      expect(extendSchema(base, extension)).toEqual({
+        type: 'object',
+        required: ['name'],
+        additionalProperties: false,
+      });
     });
 
-    it('should handle array of types', () => {
-      expect(isMoreSpecific({ type: ['string', 'number'] }, { type: ['string', 'integer'] })).toBe(
-        true
-      );
-    });
-  });
-
-  describe('required properties', () => {
-    it('should allow adding required properties', () => {
-      expect(
-        isMoreSpecific(
-          {
-            type: 'object',
-            required: ['name'],
-            properties: { name: { type: 'string' } },
-          },
-          {
-            type: 'object',
-            required: ['name', 'age'],
-            properties: {
-              name: { type: 'string' },
-              age: { type: 'number' },
-            },
-          }
-        )
-      ).toBe(true);
-    });
-
-    it('should not allow removing required properties', () => {
-      expect(
-        isMoreSpecific(
-          {
-            type: 'object',
-            required: ['name', 'age'],
-            properties: {
-              name: { type: 'string' },
-              age: { type: 'number' },
-            },
-          },
-          {
-            type: 'object',
-            required: ['name'],
-            properties: { name: { type: 'string' } },
-          }
-        )
-      ).toBe(false);
-    });
-  });
-
-  describe('enum values', () => {
-    it('should allow enum subset', () => {
-      expect(
-        isMoreSpecific(
-          { type: 'string', enum: ['a', 'b', 'c'] },
-          { type: 'string', enum: ['a', 'b'] }
-        )
-      ).toBe(true);
-    });
-
-    it('should not allow enum superset', () => {
-      expect(
-        isMoreSpecific(
-          { type: 'string', enum: ['a', 'b'] },
-          { type: 'string', enum: ['a', 'b', 'c'] }
-        )
-      ).toBe(false);
-    });
-
-    it('should not allow different enum values', () => {
-      expect(
-        isMoreSpecific(
-          { type: 'string', enum: ['a', 'b', 'c'] },
-          { type: 'string', enum: ['x', 'y'] }
-        )
-      ).toBe(false);
-    });
-  });
-
-  describe('numeric constraints', () => {
-    it('should allow narrowing numeric range', () => {
-      expect(
-        isMoreSpecific(
-          { type: 'number', minimum: 0, maximum: 100 },
-          { type: 'number', minimum: 10, maximum: 50 }
-        )
-      ).toBe(true);
-    });
-
-    it('should not allow expanding numeric range', () => {
-      expect(
-        isMoreSpecific(
-          { type: 'number', minimum: 10, maximum: 50 },
-          { type: 'number', minimum: 0, maximum: 100 }
-        )
-      ).toBe(false);
-    });
-
-    it('should handle multipleOf constraints', () => {
-      expect(
-        isMoreSpecific({ type: 'number', multipleOf: 2 }, { type: 'number', multipleOf: 4 })
-      ).toBe(true);
-
-      expect(
-        isMoreSpecific({ type: 'number', multipleOf: 4 }, { type: 'number', multipleOf: 2 })
-      ).toBe(false);
-    });
-  });
-
-  describe('array constraints', () => {
-    it('should allow narrowing array length range', () => {
-      expect(
-        isMoreSpecific(
-          {
-            type: 'array',
-            items: { type: 'number' },
-            minItems: 1,
-            maxItems: 10,
-          },
-          {
-            type: 'array',
-            items: { type: 'integer' },
-            minItems: 2,
-            maxItems: 5,
-          }
-        )
-      ).toBe(true);
-    });
-
-    it('should not allow expanding array length range', () => {
-      expect(
-        isMoreSpecific(
-          {
-            type: 'array',
-            items: { type: 'number' },
-            minItems: 2,
-            maxItems: 5,
-          },
-          {
-            type: 'array',
-            items: { type: 'number' },
-            minItems: 1,
-            maxItems: 10,
-          }
-        )
-      ).toBe(false);
-    });
-
-    it('should enforce uniqueItems constraint', () => {
-      expect(
-        isMoreSpecific({ type: 'array', uniqueItems: true }, { type: 'array', uniqueItems: false })
-      ).toBe(false);
-
-      expect(
-        isMoreSpecific({ type: 'array', uniqueItems: false }, { type: 'array', uniqueItems: true })
-      ).toBe(true);
-    });
-  });
-
-  describe('string constraints', () => {
-    it('should allow narrowing string length range', () => {
-      expect(
-        isMoreSpecific(
-          { type: 'string', minLength: 1, maxLength: 100 },
-          { type: 'string', minLength: 5, maxLength: 50 }
-        )
-      ).toBe(true);
-    });
-
-    it('should not allow expanding string length range', () => {
-      expect(
-        isMoreSpecific(
-          { type: 'string', minLength: 5, maxLength: 50 },
-          { type: 'string', minLength: 1, maxLength: 100 }
-        )
-      ).toBe(false);
-    });
-
-    it('should handle pattern constraints', () => {
-      expect(
-        isMoreSpecific(
-          { type: 'string', pattern: '^[a-z]+$' },
-          { type: 'string', pattern: '^[a-z]+$' }
-        )
-      ).toBe(true);
-
-      expect(
-        isMoreSpecific(
-          { type: 'string', pattern: '^[a-z]+$' },
-          { type: 'string', pattern: '^[0-9]+$' }
-        )
-      ).toBe(false);
+    it('should override primitive values', () => {
+      const base = { type: 'string', minLength: 1 };
+      const extension = { minLength: 5 };
+      expect(extendSchema(base, extension)).toEqual({
+        type: 'string',
+        minLength: 5,
+      });
     });
   });
 
   describe('nested objects', () => {
-    it('should handle deeply nested object properties', () => {
-      expect(
-        isMoreSpecific(
-          {
+    it('should merge nested object properties', () => {
+      const base = {
+        type: 'object',
+        properties: {
+          user: {
             type: 'object',
             properties: {
-              user: {
+              name: { type: 'string' },
+            },
+          },
+        },
+      };
+      const extension = {
+        properties: {
+          user: {
+            properties: {
+              age: { type: 'number' },
+            },
+          },
+        },
+      };
+      expect(extendSchema(base, extension)).toEqual({
+        type: 'object',
+        properties: {
+          user: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              age: { type: 'number' },
+            },
+          },
+        },
+      });
+    });
+
+    it('should handle deep property overrides', () => {
+      const base = {
+        properties: {
+          user: {
+            properties: {
+              settings: {
                 type: 'object',
                 properties: {
-                  name: { type: 'string' },
+                  theme: { type: 'string' },
                 },
               },
             },
           },
-          {
-            type: 'object',
+        },
+      };
+      const extension = {
+        properties: {
+          user: {
             properties: {
-              user: {
-                type: 'object',
+              settings: {
                 properties: {
-                  name: { type: 'string', minLength: 1 },
+                  theme: { type: 'string', enum: ['light', 'dark'] },
                 },
               },
             },
-          }
-        )
-      ).toBe(true);
+          },
+        },
+      };
+      expect(extendSchema(base, extension)).toEqual({
+        properties: {
+          user: {
+            properties: {
+              settings: {
+                type: 'object',
+                properties: {
+                  theme: { type: 'string', enum: ['light', 'dark'] },
+                },
+              },
+            },
+          },
+        },
+      });
     });
+  });
 
-    it('should handle complex nested arrays', () => {
-      expect(
-        isMoreSpecific(
-          {
+  describe('array handling', () => {
+    it('should override array values entirely', () => {
+      const base = { type: 'array', items: { type: 'string' } };
+      const extension = { items: { type: 'number' } };
+      expect(extendSchema(base, extension)).toEqual({
+        type: 'array',
+        items: { type: 'number' },
+      });
+    });
+  });
+
+  describe('real world example', () => {
+    it('should handle the resolution schema example', () => {
+      const original = {
+        $schema: 'http://json-schema.org/draft-07/schema#',
+        type: 'object',
+        properties: {
+          type: { type: 'string' },
+          title: { type: 'string' },
+          questions: {
             type: 'array',
             items: {
               type: 'object',
               properties: {
-                tags: {
+                title: { type: 'string' },
+                description: { type: 'string' },
+                votes: {
                   type: 'array',
-                  items: { type: 'string' },
+                  items: {
+                    type: 'object',
+                    properties: {
+                      personId: { type: 'string' },
+                      createdAt: { type: 'string' },
+                      vote: { type: 'string' },
+                    },
+                    required: ['personId', 'createdAt', 'vote'],
+                    additionalProperties: false,
+                  },
                 },
               },
+              required: ['description', 'votes'],
+              additionalProperties: false,
             },
+            minItems: 1,
           },
-          {
-            type: 'array',
+        },
+        required: ['type', 'title', 'questions'],
+        additionalProperties: true,
+      };
+
+      const delta = {
+        properties: {
+          questions: {
+            maxItems: 1,
             items: {
-              type: 'object',
               properties: {
-                tags: {
-                  type: 'array',
-                  items: { type: 'string', minLength: 1 },
-                  minItems: 1,
-                },
-              },
-            },
-          }
-        )
-      ).toBe(true);
-    });
-  });
-
-  describe('edge cases', () => {
-    it('should handle null/undefined schemas', () => {
-      expect(isMoreSpecific(null as any, { type: 'string' })).toBe(false);
-      expect(isMoreSpecific({ type: 'string' }, null as any)).toBe(false);
-      expect(isMoreSpecific(undefined as any, { type: 'string' })).toBe(false);
-      expect(isMoreSpecific({ type: 'string' }, undefined as any)).toBe(false);
-    });
-
-    it('should handle empty objects', () => {
-      expect(isMoreSpecific({}, {})).toBe(true);
-      expect(isMoreSpecific({ type: 'object' }, {})).toBe(true);
-      expect(isMoreSpecific({}, { type: 'object' })).toBe(true);
-    });
-
-    it('should handle contradictory constraints', () => {
-      expect(isMoreSpecific({ type: 'number', maximum: 10 }, { type: 'number', minimum: 20 })).toBe(
-        false
-      );
-
-      expect(
-        isMoreSpecific({ type: 'string', maxLength: 5 }, { type: 'string', minLength: 10 })
-      ).toBe(false);
-
-      expect(isMoreSpecific({ type: 'array', maxItems: 3 }, { type: 'array', minItems: 5 })).toBe(
-        false
-      );
-    });
-  });
-
-  describe('real world examples', () => {
-    it('should handle resolution schema example', () => {
-      expect(
-        isMoreSpecific(
-          {
-            $schema: 'http://json-schema.org/draft-07/schema#',
-            type: 'object',
-            properties: {
-              type: { type: 'string' },
-              title: { type: 'string' },
-              questions: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    title: { type: 'string' },
-                    description: { type: 'string' },
-                    votes: {
-                      type: 'array',
-                      items: {
-                        type: 'object',
-                        properties: {
-                          personId: { type: 'string' },
-                          createdAt: { type: 'string' },
-                          vote: { type: 'string' },
-                        },
-                        required: ['personId', 'createdAt', 'vote'],
-                        additionalProperties: false,
+                votes: {
+                  items: {
+                    properties: {
+                      vote: {
+                        enum: ['for', 'against', 'abstain'],
                       },
                     },
                   },
-                  required: ['description', 'votes'],
-                  additionalProperties: false,
                 },
-                minItems: 1,
               },
             },
-            required: ['type', 'title', 'questions'],
-            additionalProperties: true,
           },
-          {
-            $schema: 'http://json-schema.org/draft-07/schema#',
-            type: 'object',
-            properties: {
-              type: { type: 'string', const: 'resolution' },
-              title: { type: 'string' },
-              questions: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    description: { type: 'string' },
-                    votes: {
-                      type: 'array',
-                      items: {
-                        type: 'object',
-                        properties: {
-                          personId: { type: 'string' },
-                          createdAt: { type: 'string' },
-                          vote: { type: 'string', enum: ['for', 'against', 'abstain'] },
-                        },
-                        required: ['personId', 'createdAt', 'vote'],
-                        additionalProperties: false,
-                      },
-                    },
-                  },
-                  required: ['description', 'votes'],
-                  additionalProperties: false,
-                },
-                minItems: 1,
-              },
-            },
-            required: ['type', 'title', 'questions'],
-            additionalProperties: false,
-          }
-        )
-      ).toBe(true);
+        },
+      };
+
+      const result = extendSchema(original, delta) as {
+        properties: {
+          questions: {
+            maxItems: number;
+            items: {
+              properties: {
+                votes: {
+                  items: {
+                    properties: {
+                      vote: {
+                        enum: string[];
+                      };
+                    };
+                  };
+                };
+              };
+            };
+          };
+        };
+      };
+      expect(result.properties.questions.maxItems).toBe(1);
+      expect(result.properties.questions.items.properties.votes.items.properties.vote.enum).toEqual(
+        ['for', 'against', 'abstain']
+      );
     });
   });
 });

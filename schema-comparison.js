@@ -224,3 +224,134 @@ function areStringConstraintsCompatible(original, extension) {
 
     return true;
 }
+
+function mergeNumericConstraints(base, delta, result) {
+    if (delta.minimum !== undefined) {
+        result.minimum = Math.max(delta.minimum, base.minimum || -Infinity);
+    }
+    if (delta.maximum !== undefined) {
+        result.maximum = Math.min(delta.maximum, base.maximum || Infinity);
+    }
+    if (delta.exclusiveMinimum !== undefined) {
+        result.exclusiveMinimum = Math.max(delta.exclusiveMinimum, base.exclusiveMinimum || -Infinity);
+    }
+    if (delta.exclusiveMaximum !== undefined) {
+        result.exclusiveMaximum = Math.min(delta.exclusiveMaximum, base.exclusiveMaximum || Infinity);
+    }
+    if (delta.multipleOf !== undefined) {
+        if (base.multipleOf !== undefined) {
+            if (delta.multipleOf % base.multipleOf === 0) {
+                result.multipleOf = delta.multipleOf;
+            }
+        } else {
+            result.multipleOf = delta.multipleOf;
+        }
+    }
+}
+
+function createExtension(base, delta) {
+    if (!base || !delta) return base || delta || {};
+
+    const result = { ...base };
+
+    // Merge types
+    if (delta.type) {
+        const baseTypes = Array.isArray(base.type) ? base.type : [base.type || 'object'];
+        const deltaTypes = Array.isArray(delta.type) ? delta.type : [delta.type];
+
+        const compatibleTypes = deltaTypes.filter(deltaType =>
+            baseTypes.some(baseType => baseType === deltaType || (baseType === 'number' && deltaType === 'integer'))
+        );
+
+        if (compatibleTypes.length === 0) {
+            result.type = base.type || 'object';
+        } else {
+            const finalTypes = compatibleTypes.filter(
+                type => !compatibleTypes.some(otherType => type !== otherType && isTypeCompatible(type, otherType))
+            );
+            result.type = Array.isArray(base.type) ? finalTypes : finalTypes.length === 1 ? finalTypes[0] : finalTypes;
+        }
+    }
+
+    // Merge const values
+    if (delta.const !== undefined) {
+        result.const = delta.const;
+    }
+
+    // Merge enum values
+    if (delta.enum) {
+        if (base.enum) {
+            result.enum = delta.enum.filter(value => base.enum.includes(value));
+        } else {
+            result.enum = delta.enum;
+        }
+    }
+
+    // Merge numeric constraints for root schema
+    if (base.type === 'number' || base.type === 'integer') {
+        mergeNumericConstraints(base, delta, result);
+    }
+
+    // Merge array constraints
+    if (base.type === 'array' && delta.type === 'array') {
+        if (delta.minItems !== undefined) {
+            result.minItems = Math.max(delta.minItems, base.minItems || 0);
+        }
+        if (delta.maxItems !== undefined) {
+            result.maxItems = Math.min(delta.maxItems, base.maxItems || Infinity);
+        }
+        if (delta.uniqueItems !== undefined) {
+            result.uniqueItems = delta.uniqueItems || base.uniqueItems;
+        }
+        if (delta.items && base.items) {
+            result.items = createExtension(base.items, delta.items);
+        }
+    }
+
+    // Merge string constraints
+    if (base.type === 'string' && delta.type === 'string') {
+        if (delta.minLength !== undefined) {
+            result.minLength = Math.max(delta.minLength, base.minLength || 0);
+        }
+        if (delta.maxLength !== undefined) {
+            result.maxLength = Math.min(delta.maxLength, base.maxLength || Infinity);
+        }
+        if (delta.pattern !== undefined) {
+            result.pattern = delta.pattern;
+        }
+    }
+
+    // Merge object properties
+    if (base.type === 'object' || delta.type === 'object') {
+        if (delta.additionalProperties !== undefined) {
+            result.additionalProperties = delta.additionalProperties && base.additionalProperties !== false;
+        }
+
+        if (delta.properties) {
+            result.properties = result.properties || {};
+            for (const [key, deltaSchema] of Object.entries(delta.properties)) {
+                const baseSchema = base.properties?.[key];
+                if (baseSchema) {
+                    result.properties[key] = createExtension(baseSchema, deltaSchema);
+                    if (baseSchema.type === 'number' || baseSchema.type === 'integer') {
+                        mergeNumericConstraints(baseSchema, deltaSchema, result.properties[key]);
+                    }
+                } else {
+                    result.properties[key] = deltaSchema;
+                }
+            }
+        }
+
+        if (delta.required) {
+            result.required = Array.from(new Set([...(base.required || []), ...delta.required]));
+        }
+    }
+
+    return result;
+}
+
+// Export for browser use
+window.jsonSchemaSpecificity = {
+    isMoreSpecific,
+    createExtension
+};
