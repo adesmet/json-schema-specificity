@@ -71,7 +71,8 @@ export function createExtension(base: JSONSchema, delta: JSONSchema): JSONSchema
   }
 
   // Merge numeric constraints
-  if ((base.type === 'number' || base.type === 'integer') && (delta.type === 'number' || delta.type === 'integer')) {
+  if ((base.type === 'number' || base.type === 'integer') || 
+      (base.properties && Object.values(base.properties).some(p => p.type === 'number' || p.type === 'integer'))) {
     // Take the most restrictive constraints
     if (delta.minimum !== undefined) {
       result.minimum = Math.max(delta.minimum, base.minimum || -Infinity);
